@@ -87,32 +87,36 @@ class SimpleNN:
 
     def forward(self, x):
         # First layer
-        self.z1 = np.dot(x, self.W1) + self.b1
-        self.a1 = self.relu(self.z1)
+        z1 = np.dot(x, self.W1) + self.b1
+        a1 = self.relu(z1)
         
         # Output layer
-        self.z2 = np.dot(self.a1, self.W2) + self.b2
-        self.a2 = self.sigmoid(self.z2)
+        z2 = np.dot(a1, self.W2) + self.b2
+        a2 = self.sigmoid(z2)
         
-        return self.a2
+        # Return all the intermediate outputs as well because we need them for backpropagation (SEE YOUR SLIDES)
+        return z1, a1, z2, a2
 
 def relu_derivative(x):
+    # to find
     return (x > 0).astype(float)
 
 def sigmoid_derivative(x):
+    # to find
     return x * (1 - x)
 
-def backward(net, x, y, output, learning_rate=0.01):
+def backward(net, x, y, z1, a1, z2, a2, learning_rate=0.01):
+    # TO FIND ENTIRE FUNCTION ish
     # Calculate loss gradient
-    error = output - y
+    error = a2 - y
     d_output = error * sigmoid_derivative(output)
 
     # Backpropagate to hidden layer
-    d_W2 = np.dot(net.a1.T, d_output)
+    d_W2 = np.dot(a1.T, d_output)
     d_b2 = np.sum(d_output, axis=0, keepdims=True)
 
     error_hidden_layer = np.dot(d_output, net.W2.T)
-    d_hidden_layer = error_hidden_layer * relu_derivative(net.a1)
+    d_hidden_layer = error_hidden_layer * relu_derivative(a1)
 
     # Backpropagate to input layer
     d_W1 = np.dot(x.T, d_hidden_layer)
@@ -124,10 +128,11 @@ def backward(net, x, y, output, learning_rate=0.01):
     net.W2 -= learning_rate * d_W2
     net.b2 -= learning_rate * d_b2.squeeze()
 
-def train(net, x_train, y_train, epochs):
+def train(net, x_train, y_train, epochs, learning_rate):
     for epoch in range(epochs):
-        output = net.forward(x_train)
-        backward(net, x_train, y_train, output)
+        z1, a1, z2, a2,  = net.forward(x_train)
+        backward(net, x_train, y_train, z1, a1, z2, a2, learning_rate)
+
         if epoch % 100 == 0:
             loss = np.mean((output - y_train) ** 2)
             print(f"Epoch {epoch}: Loss {loss}")
@@ -153,19 +158,7 @@ output_size = 1 # We want to predict a single value (regression)
 # Neural Network training here
 network = SimpleNN(input_size, hidden_size, output_size)
 
+# add training part here 
 
-
-
-
-# forward pass
-output, z = network.forward(input_data)
-print("Output:", output)
-
-# backward pass
-error = output - y_train_
-sigmoid_derivative = output * (1 - output)
-d_weights = np.dot(x_train_.T, 2 * error * sigmoid_derivative)
-d_bias = 2 * error * sigmoid_derivative
-l
 
 # CNN part
