@@ -161,4 +161,5 @@ network = SimpleNN(input_size, hidden_size, output_size)
 # add training part here 
 
 
+
 # CNN part
