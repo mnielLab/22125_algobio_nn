@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
-# import matplotlib.pyplot as plt
-# from sklearn.metrics import roc_curve, auc, matthews_corrcoef
+import math
+
+import sys
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc, matthews_corrcoef
 
 # Utility functions you will re-use
 
@@ -69,8 +72,6 @@ x_valid_, y_valid_ = encode_peptides(valid_raw, blosum_file, train_raw.peptide.a
 x_test_, y_test_ = encode_peptides(test_raw, blosum_file, train_raw.peptide.apply(len).max())
 
 # FFN part
-import numpy as np
-
 class SimpleFFNN:
     def __init__(self, input_size, hidden_size, output_size):
         # Initialize weights and biases with small random values
@@ -80,11 +81,20 @@ class SimpleFFNN:
         self.b2 = np.zeros(output_size)
 
     def relu(self, x):
-        
         return np.maximum(0, x)
 
-    def sigmoid(self, x):
-        return 1 / (1 + np.exp(-x))
+    # This version of sigmoid here is NOT numerically stable.
+    # We need to split the cases where the input is positive or negative
+    # because np.exp(-x) for something negative will quickly overflow if x is a large negative number
+    # def sigmoid(self, x):
+    #     return 1 / (1 + np.exp(-x))
+
+    def sigmoid(self, x): 
+        # This is equivalent to : 
+        # if x>=0, then compute (1/(1+np.exp(-x)))
+        # else: compute (np.exp(x)/(1+np.exp(x))))
+        return np.where(x >= 0, 1 / (1 + np.exp(-x)), 
+                        np.exp(x) / (1 + np.exp(x)))
 
     def forward(self, x):
         """
@@ -113,13 +123,16 @@ def sigmoid_derivative(x):
     return x * (1 - x)
 
 def backward(net, x, y, z1, a1, z2, a2, learning_rate=0.01):
+    """
+    Function to backpropagate the gradients from the output to update the weights.
+    """
     # This assumes that we are computing a MSE as the loss function.
     # Look at your slides to compute the gradient backpropagation for a mean-squared error using the chain rule.
 
     # TO FIND 
     # Calculate loss gradient
     error = a2 - y
-    d_output = error * sigmoid_derivative(output)
+    d_output = error * sigmoid_derivative(a2)
 
     # TO FIND
     # Backpropagate to hidden layer
@@ -135,29 +148,39 @@ def backward(net, x, y, z1, a1, z2, a2, learning_rate=0.01):
     d_W1 = np.dot(x.T, d_hidden_layer)
     d_b1 = np.sum(d_hidden_layer, axis=0, keepdims=True)
     # TODO remove this print
-    print(d_W1, d_b1, d_W2, d_b2)
+    # print(d_W1, d_b1, d_W2, d_b2)
     # Update weights and biases using gradient descent
     net.W1 -= learning_rate * d_W1
     net.b1 -= learning_rate * d_b1.squeeze()
     net.W2 -= learning_rate * d_W2
     net.b2 -= learning_rate * d_b2.squeeze()
 
-def train(net, x_train, y_train, n_epochs, learning_rate):
-    for epoch in range(n_epochs):
-        z1, a1, z2, a2,  = net.forward(x_train)
-        backward(net, x_train, y_train, z1, a1, z2, a2, learning_rate)
-        # For the first, every 5% of the epochs and last epoch, we print the loss 
-        # to check that the model is properly training. (loss going down)
-        if (n_epochs >= 10 and epoch % math.ceil(0.05 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
-            loss = np.mean((a2 - y_train) ** 2)
-            print(f"Epoch {epoch}: Loss {loss}")
-
+def train_network(net, x_train, y_train, learning_rate):
+    """
+    Trains the network for a single epoch, running the forward and backward pass, and compute and return the loss.
+    """
+    # Forward pass
+    z1, a1, z2, a2,  = net.forward(x_train)
+    # backward pass
+    backward(net, x_train, y_train, z1, a1, z2, a2, learning_rate)
+    loss = np.mean((a2 - y_train) ** 2)
+    return loss
+        
+def eval_network(net, x_valid, y_valid):
+    """
+    Evaluates the network ; Note that we do not update weights (no backward pass)
+    """
+    z1, a1, z2, a2 = net.forward(x_valid)
+    loss = np.mean((a2-y_valid)**2)
+    return loss
 
 
 # Reshaping the matrices so they're flat because feed-forward networks are "one-dimensional"
 x_train_ = x_train_.reshape(x_train_.shape[0], -1)
 x_valid_ = x_valid_.reshape(x_valid_.shape[0], -1)
 x_test_ = x_test_.reshape(x_test_.shape[0], -1)
+
+print(x_train_.shape, x_valid_.shape, x_test_.shape)
 
 # Using the full dataset as a batch (full gradient descent)
 batch_size = x_train_.shape[0]
@@ -167,16 +190,37 @@ input_size = x_train_.shape[1]
 # CHECKPOINT
 
 # Hyperparameters
-learning_rate = 0.1 
-hidden_units = 25
-n_epochs = 1000
+learning_rate = float(sys.argv[1]) # 0.01
+hidden_units = int(sys.argv[2]) # 50
+n_epochs = int(sys.argv[3]) # 500
 output_size = 1 # We want to predict a single value (regression)
 
 # Neural Network training here
 network = SimpleFFNN(input_size, hidden_units, output_size)
 
+train_losses = []
+valid_losses = []
 # add training part here 
-train(network, x_train_, y_train_, n_epochs, learning_rate)
+for epoch in range(n_epochs):
+    train_loss = train_network(network, x_train_, y_train_, learning_rate)
+    valid_loss = eval_network(network, x_valid_, y_valid_)
+    train_losses.append(train_loss)
+    valid_losses.append(valid_loss)
+    # For the first, every 5% of the epochs and last epoch, we print the loss 
+    # to check that the model is properly training. (loss going down)
+    if (n_epochs >= 10 and epoch % math.ceil(0.05 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
+        print(f"Epoch {epoch}: \n\tTrain Loss:{train_loss:.4f}\tValid Loss:{valid_loss:.4f}")
+
+# Plotting the losses 
+fig,ax = plt.subplots(1,1, figsize=(9,5))
+ax.plot(range(n_epochs), train_losses, label='Train loss', c='b')
+ax.plot(range(n_epochs), valid_losses, label='Valid loss', c='m')
+ax.legend()
+plt.show()
+
+
+
+
 
 
 # CNN part
