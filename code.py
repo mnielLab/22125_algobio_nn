@@ -38,7 +38,7 @@ def encode_peptides(X_in, blosum_file, max_pep_len=9):
         for aa_index in range(len(row.peptide)):
             X_out[peptide_index, aa_index] = blosum[ row.peptide[aa_index] ].values
             
-    return X_out, X_in.target.values
+    return X_out, np.expand_dims(X_in.target.values,1)
 
 # Misc. functions
 def invoke(early_stopping, loss, model, implement=False):
@@ -71,7 +71,7 @@ x_test_, y_test_ = encode_peptides(test_raw, blosum_file, train_raw.peptide.appl
 # FFN part
 import numpy as np
 
-class SimpleNN:
+class SimpleFFNN:
     def __init__(self, input_size, hidden_size, output_size):
         # Initialize weights and biases with small random values
         self.W1 = np.random.randn(input_size, hidden_size) * 0.1
@@ -80,12 +80,19 @@ class SimpleNN:
         self.b2 = np.zeros(output_size)
 
     def relu(self, x):
+        
         return np.maximum(0, x)
 
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
 
     def forward(self, x):
+        """
+        zi denotes the output of a hidden layer i
+        ai denotes the output of an activation function at layer i
+        (activations are relu, sigmoid, tanh, etc.)
+        """
+
         # First layer
         z1 = np.dot(x, self.W1) + self.b1
         a1 = self.relu(z1)
@@ -94,7 +101,7 @@ class SimpleNN:
         z2 = np.dot(a1, self.W2) + self.b2
         a2 = self.sigmoid(z2)
         
-        # Return all the intermediate outputs as well because we need them for backpropagation (SEE YOUR SLIDES)
+        # Return all the intermediate outputs as well because we need them for backpropagation (see slides)
         return z1, a1, z2, a2
 
 def relu_derivative(x):
@@ -106,60 +113,70 @@ def sigmoid_derivative(x):
     return x * (1 - x)
 
 def backward(net, x, y, z1, a1, z2, a2, learning_rate=0.01):
-    # TO FIND ENTIRE FUNCTION ish
+    # This assumes that we are computing a MSE as the loss function.
+    # Look at your slides to compute the gradient backpropagation for a mean-squared error using the chain rule.
+
+    # TO FIND 
     # Calculate loss gradient
     error = a2 - y
     d_output = error * sigmoid_derivative(output)
 
+    # TO FIND
     # Backpropagate to hidden layer
     d_W2 = np.dot(a1.T, d_output)
     d_b2 = np.sum(d_output, axis=0, keepdims=True)
 
+    # TO FIND
     error_hidden_layer = np.dot(d_output, net.W2.T)
     d_hidden_layer = error_hidden_layer * relu_derivative(a1)
 
+    # TO FIND
     # Backpropagate to input layer
     d_W1 = np.dot(x.T, d_hidden_layer)
     d_b1 = np.sum(d_hidden_layer, axis=0, keepdims=True)
-
+    # TODO remove this print
+    print(d_W1, d_b1, d_W2, d_b2)
     # Update weights and biases using gradient descent
     net.W1 -= learning_rate * d_W1
     net.b1 -= learning_rate * d_b1.squeeze()
     net.W2 -= learning_rate * d_W2
     net.b2 -= learning_rate * d_b2.squeeze()
 
-def train(net, x_train, y_train, epochs, learning_rate):
-    for epoch in range(epochs):
+def train(net, x_train, y_train, n_epochs, learning_rate):
+    for epoch in range(n_epochs):
         z1, a1, z2, a2,  = net.forward(x_train)
         backward(net, x_train, y_train, z1, a1, z2, a2, learning_rate)
-
-        if epoch % 100 == 0:
-            loss = np.mean((output - y_train) ** 2)
+        # For the first, every 5% of the epochs and last epoch, we print the loss 
+        # to check that the model is properly training. (loss going down)
+        if (n_epochs >= 10 and epoch % math.ceil(0.05 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
+            loss = np.mean((a2 - y_train) ** 2)
             print(f"Epoch {epoch}: Loss {loss}")
 
 
 
-# Reshaping the matrices so they're flat 
+# Reshaping the matrices so they're flat because feed-forward networks are "one-dimensional"
 x_train_ = x_train_.reshape(x_train_.shape[0], -1)
 x_valid_ = x_valid_.reshape(x_valid_.shape[0], -1)
 x_test_ = x_test_.reshape(x_test_.shape[0], -1)
+
+# Using the full dataset as a batch (full gradient descent)
 batch_size = x_train_.shape[0]
-n_features = x_train_.shape[1]
+# The input size is the number of features ; Here it's max_length * 21 because we have 21 matrix dimensions
+input_size = x_train_.shape[1]
 
 # CHECKPOINT
 
-# Hyper parameters
-learning_rate = 0.01
-hidden_units = 10
-n_epochs = 10
-input_size = 9 * 21 # X * Y # Read your data to find out, where X is a length, and Y a matrix dimension
+# Hyperparameters
+learning_rate = 0.1 
+hidden_units = 25
+n_epochs = 1000
 output_size = 1 # We want to predict a single value (regression)
 
 # Neural Network training here
-network = SimpleNN(input_size, hidden_size, output_size)
+network = SimpleFFNN(input_size, hidden_units, output_size)
 
 # add training part here 
-
+train(network, x_train_, y_train_, n_epochs, learning_rate)
 
 
 # CNN part
