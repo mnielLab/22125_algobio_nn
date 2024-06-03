@@ -56,6 +56,20 @@ def invoke(early_stopping, loss, model, implement=False):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+ALLELE = 'A0301' #'A0301'
+
+blosum_file = './data/BLOSUM50'
+train_data = f'./data/{ALLELE}/train_BA'
+valid_data = f'./data/{ALLELE}/valid_BA'
+test_data = f'./data/{ALLELE}/test_BA'
+
+train_raw = load_peptide_target(train_data)
+valid_raw = load_peptide_target(valid_data)
+test_raw = load_peptide_target(test_data)
+
+x_train_, y_train_ = encode_peptides(train_raw, blosum_file, train_raw.peptide.apply(len).max())
+x_valid_, y_valid_ = encode_peptides(valid_raw, blosum_file, train_raw.peptide.apply(len).max())
+x_test_, y_test_ = encode_peptides(test_raw, blosum_file, train_raw.peptide.apply(len).max())
 
 # FFN part
 class SimpleFFNN:
