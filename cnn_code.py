@@ -90,11 +90,8 @@ class SimpleCNN:
         return np.max(x, axis=1), pool_indices
 
     def forward(self, x):
-        print("input", x.shape)
         conv_output = self.conv1d(x)
-        print("conv output", conv_output.shape)
         pooled_output, pool_indices = self.global_max_pooling(conv_output)
-        print("pooled output", pooled_output.shape)
         return conv_output, pooled_output, pool_indices, *self.fnn.forward(pooled_output)
 
 
@@ -118,27 +115,28 @@ def backward(net, x, y, conv_output, pooled_output, pool_indices, z1, a1, z2, a2
     d_W1 = np.dot(pooled_output.T, d_hidden_layer)
     d_b1 = np.sum(d_hidden_layer, axis=0, keepdims=True)
 
+    # Backpropagate to convolutional layer
+    d_pool = np.dot(d_hidden_layer, net.fnn.W1.T)
+    d_conv = np.zeros_like(conv_output)
+    for b in range(len(x)):
+        for o in range(net.filter.shape[2]):
+            d_conv[b, pool_indices[b, o], o] = d_pool[b, o]
+            
+    # Gradient for the filter
+    d_filter = np.zeros_like(net.filter)
+    for b in range(len(x)):
+        for i in range(d_conv.shape[1]):
+            for o in range(net.filter.shape[2]):
+                d_filter[:, :, o] += x[b, i:i + net.filter.shape[0]] * d_conv[b, i, o]
+
+    # Update filter using gradient descent
+    net.filter -= learning_rate * d_filter
+
+    # Update filter using gradient descent
     net.fnn.W1 -= learning_rate * d_W1
     net.fnn.b1 -= learning_rate * d_b1.squeeze()
     net.fnn.W2 -= learning_rate * d_W2
     net.fnn.b2 -= learning_rate * d_b2.squeeze()
-
-    # Backpropagate to max pooling layer
-    d_pool = np.zeros_like(conv_output)
-    for b in range(pool_indices.shape[0]):
-        for o in range(pool_indices.shape[1]):
-            d_pool[b, pool_indices[b, o], o] = d_hidden_layer[b, o]
-
-    # Backpropagate to convolutional layer
-    kernel_size, in_channels, out_channels = net.filter.shape
-    d_filter = np.zeros_like(net.filter)
-
-    for b in range(len(x)):
-        for o in range(out_channels):
-            for i in range(len(x[0]) - kernel_size + 1):
-                d_filter[:, :, o] += d_pool[b, i, o] * x[b, i:i + kernel_size]
-
-    # Update filter using gradient descent
     net.filter -= learning_rate * d_filter
 
 
@@ -190,7 +188,7 @@ n_epochs = int(sys.argv[3]) # 500
 output_size = 1 # We want to predict a single value (regression)
 
 # Neural Network training here
-network = SimpleCNN(kernel_size=3, in_channels=21, out_channels=64, hidden_size=hidden_units, output_size=output_size)
+network = SimpleCNN(kernel_size=5, in_channels=21, out_channels=64, hidden_size=hidden_units, output_size=output_size)
 
 train_losses = []
 valid_losses = []
