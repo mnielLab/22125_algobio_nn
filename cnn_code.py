@@ -75,11 +75,9 @@ class SimpleCNN:
         output_size = len(batch_x[0]) - kernel_size + 1
         batch_output = np.zeros((batch_size, output_size, out_channels))
 
-        for b in range(batch_size):
-            for i in range(output_size):
-                for o in range(out_channels):
-                    batch_output[b, i, o] = np.sum(batch_x[b, i:i + kernel_size] * self.filter[:, :, o])
-
+        for i in range(output_size):
+            batch_output[:, i, :] = np.sum(batch_x[:, i:i + kernel_size, :, None] * self.filter, axis=(1, 2))
+        
         return batch_output
 
     def global_max_pooling(self, x):
@@ -118,16 +116,21 @@ def backward(net, x, y, conv_output, pooled_output, pool_indices, z1, a1, z2, a2
     # Backpropagate to convolutional layer
     d_pool = np.dot(d_hidden_layer, net.fnn.W1.T)
     d_conv = np.zeros_like(conv_output)
-    for b in range(len(x)):
-        for o in range(net.filter.shape[2]):
-            d_conv[b, pool_indices[b, o], o] = d_pool[b, o]
+
+    # COMMENTED CODE FOR INTUITION
+    # for b in range(len(x)):
+    #     for o in range(net.filter.shape[2]):
+    #         d_conv[b, pool_indices[b, o], o] = d_pool[b, o]
+    b_indices = np.arange(len(x))[:, None]
+    o_indices = np.arange(net.filter.shape[2])[None, :]
+    d_conv[b_indices, pool_indices, o_indices] = d_pool
             
     # Gradient for the filter
     d_filter = np.zeros_like(net.filter)
     for b in range(len(x)):
         for i in range(d_conv.shape[1]):
-            for o in range(net.filter.shape[2]):
-                d_filter[:, :, o] += x[b, i:i + net.filter.shape[0]] * d_conv[b, i, o]
+            d_filter += x[b, i:i + net.filter.shape[0], :, None] * d_conv[b, i, None, :]
+
 
     # Update filter using gradient descent
     net.filter -= learning_rate * d_filter
