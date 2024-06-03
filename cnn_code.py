@@ -142,6 +142,7 @@ def backward(net, x, y, conv_output, pooled_output, pool_indices, z1, a1, z2, a2
     net.filter -= learning_rate * d_filter
 
 
+
 def train_network(net, x_train, y_train, learning_rate):
     """
     Trains the network for a single epoch, running the forward and backward pass, and compute and return the loss.
@@ -187,10 +188,12 @@ input_size = x_train_.shape[-1]
 learning_rate = float(sys.argv[1]) # 0.01
 hidden_units = int(sys.argv[2]) # 50
 n_epochs = int(sys.argv[3]) # 500
+kernel_size = int(sys.argv[4])
 output_size = 1 # We want to predict a single value (regression)
 
 # Neural Network training here
-network = SimpleCNN(kernel_size=5, in_channels=21, out_channels=sys.argv[2], hidden_size=hidden_units, output_size=output_size)
+network = SimpleCNN(kernel_size=kernel_size, in_channels=21, out_channels=hidden_units, 
+                    hidden_size=hidden_units, output_size=output_size)
 
 train_losses = []
 valid_losses = []
@@ -202,7 +205,7 @@ for epoch in tqdm(range(n_epochs)):
     valid_losses.append(valid_loss)
     # For the first, every 5% of the epochs and last epoch, we print the loss 
     # to check that the model is properly training. (loss going down)
-    if (n_epochs >= 10 and epoch % math.ceil(0.05 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
+    if (n_epochs >= 10 and epoch % math.ceil(0.025 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
         print(f"Epoch {epoch}: \n\tTrain Loss:{train_loss:.4f}\tValid Loss:{valid_loss:.4f}")
 
 # Plotting the losses 
