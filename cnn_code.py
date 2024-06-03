@@ -2,10 +2,11 @@ import numpy as np
 import pandas as pd
 import math
 from tqdm.auto import tqdm
+import pickle
 import sys
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc, matthews_corrcoef
-from ffnn_code import SimpleFFNN, relu_derivative, sigmoid_derivative
+from ffnn_code import SimpleFFNN, relu_derivative, sigmoid_derivative, save_ffnn_model, load_ffnn_model
 
 # Utility functions you will re-use
 
@@ -38,7 +39,7 @@ def encode_peptides(X_in, blosum_file, max_pep_len=9):
     
     X_out = np.zeros((batch_size, max_pep_len, n_features), dtype=np.int8)
     
-    print(X_out.shape)
+    # print(X_out.shape)
 
     for peptide_index, row in X_in.iterrows():
         for aa_index in range(len(row.peptide)):
@@ -60,6 +61,40 @@ def invoke(early_stopping, loss, model, implement=False):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+
+def save_cnn_model(filepath, model):
+    if not filepath.endswith('.pkl'):
+        filepath = filepath+'.pkl'
+    fnn_dict = {'input_size': model.fnn.W1.shape[0], 'hidden_size':model.fnn.W1.shape[1], 'output_size':model.fnn.W2.shape[1],
+                        'W1': model.fnn.W1, 'b1':model.fnn.b1, 'W2':model.fnn.W2, 'b2':model.fnn.b2}
+    cnn_dict = {'kernel_size': model.filter.shape[0], 
+                'in_channels': model.filter.shape[1],
+                'out_channels': model.filter.shape[2],
+                'filter': model.filter}
+    dict_to_save = {'ffnn':fnn_dict,
+                    'cnn':cnn_dict}
+    with open(filepath, 'wb') as f:
+        pickle.dump(dict_to_save, f)
+        print(f'Saved CNN model at {filepath}')
+
+def load_cnn_model(filepath, model):
+    with open(filepath, 'rb') as f:
+        loaded_dict = pickle.load(f)
+        fnn_dict = loaded_dict['ffnn']
+        cnn_dict = loaded_dict['cnn']
+
+    if model is None:
+        model=SimpleCNN(cnn_dict['kernel_size'], cnn_dict['in_channels'], cnn_dict['out_channels'], fnn_dict['hidden_size'], fnn_dict['output_size'])
+    assert (model.fnn.W1.shape[0]==fnn_dict['input_size'] and model.fnn.W1.shape[1]==fnn_dict['hidden_size'] and model.fnn.W2.shape[1]==fnn_dict['output_size'] and model.filter.shape==cnn_dict['filter'].shape), \
+        f"Model and loaded weights size mismatch!. Provided model has CNN filter shape and FFNN weight of dimensions {model.filter.shape, model.fnn.W1.shape, model.fnn.W2.shape} ; Loaded weights have filter shape and FFNN weights shape {cnn_dict['filter'].shape, fnn_dict['W1'].shape, fnn_dict['W2'].shape}"
+    
+    model.fnn.W1 = fnn_dict['W1']
+    model.fnn.b1 = fnn_dict['b1']
+    model.fnn.W2 = fnn_dict['W2']
+    model.fnn.b2 = fnn_dict['b2']
+    model.filter = cnn_dict['filter']
+    print(f"Model loaded successfully from {filepath}\nwith filters and weights [filters, W1, W2 ] dimensions : {model.filter.shape, model.fnn.W1.shape, model.fnn.W2.shape}")
+    return model
 
 class SimpleCNN:
     def __init__(self, kernel_size, in_channels, out_channels, hidden_size, output_size):
@@ -163,58 +198,69 @@ def eval_network(net, x_valid, y_valid):
     loss = np.mean((a2-y_valid)**2)
     return loss
 
-ALLELE = 'A0301' #'A0201'
 
+def main():
+    ALLELE = 'A0201' #'A0301' #'A0201'
 
-blosum_file = './data/BLOSUM50'
-train_data = f'./data/{ALLELE}/train_BA'
-valid_data = f'./data/{ALLELE}/valid_BA'
-test_data = f'./data/{ALLELE}/test_BA'
+    blosum_file = './data/BLOSUM50'
+    train_data = f'./data/{ALLELE}/train_BA'
+    valid_data = f'./data/{ALLELE}/valid_BA'
+    test_data = f'./data/{ALLELE}/test_BA'
 
-train_raw = load_peptide_target(train_data)
-valid_raw = load_peptide_target(valid_data)
-test_raw = load_peptide_target(test_data)
+    train_raw = load_peptide_target(train_data)
+    valid_raw = load_peptide_target(valid_data)
+    test_raw = load_peptide_target(test_data)
 
-x_train_, y_train_ = encode_peptides(train_raw, blosum_file, train_raw.peptide.apply(len).max())
-x_valid_, y_valid_ = encode_peptides(valid_raw, blosum_file, train_raw.peptide.apply(len).max())
-x_test_, y_test_ = encode_peptides(test_raw, blosum_file, train_raw.peptide.apply(len).max())
+    x_train_, y_train_ = encode_peptides(train_raw, blosum_file, train_raw.peptide.apply(len).max())
+    x_valid_, y_valid_ = encode_peptides(valid_raw, blosum_file, train_raw.peptide.apply(len).max())
+    x_test_, y_test_ = encode_peptides(test_raw, blosum_file, train_raw.peptide.apply(len).max())
 
-print(x_train_.shape, x_valid_.shape, x_test_.shape)
+    # print(x_train_.shape, x_valid_.shape, x_test_.shape)
 
-# Using the full dataset as a batch (full gradient descent)
-batch_size = x_train_.shape[0]
-# The input size is the number of features ; Here it's max_length * 21 because we have 21 matrix dimensions
-input_size = x_train_.shape[-1]
+    # Using the full dataset as a batch (full gradient descent)
+    batch_size = x_train_.shape[0]
+    # The input size is the number of features ; Here it's max_length * 21 because we have 21 matrix dimensions
+    input_size = x_train_.shape[-1]
 
-# Hyperparameters
-learning_rate = float(sys.argv[1]) # 0.0001
-hidden_units = int(sys.argv[2]) # 50
-out_channels = int(sys.argv[3]) # 50
-n_epochs = int(sys.argv[4]) # 500
-kernel_size = int(sys.argv[5])
-output_size = 1 # We want to predict a single value (regression)
+    # Hyperparameters
+    learning_rate = float(sys.argv[1]) # 0.0001
+    hidden_units = int(sys.argv[2]) # 50
+    out_channels = int(sys.argv[3]) # 50
+    n_epochs = int(sys.argv[4]) # 500
+    kernel_size = int(sys.argv[5])
+    output_size = 1 # We want to predict a single value (regression)
 
-# Neural Network training here
-network = SimpleCNN(kernel_size=kernel_size, in_channels=21, out_channels=out_channels, 
-                    hidden_size=hidden_units, output_size=output_size)
+    # Neural Network training here
+    network = SimpleCNN(kernel_size=kernel_size, in_channels=21, out_channels=out_channels, 
+                        hidden_size=hidden_units, output_size=output_size)
 
-train_losses = []
-valid_losses = []
-# add training part here 
-for epoch in tqdm(range(n_epochs)):
-    learning_rate *= 0.99 # LR scheduler
-    train_loss = train_network(network, x_train_, y_train_, learning_rate)
-    valid_loss = eval_network(network, x_valid_, y_valid_)
-    train_losses.append(train_loss)
-    valid_losses.append(valid_loss)
-    # For the first, every 5% of the epochs and last epoch, we print the loss 
-    # to check that the model is properly training. (loss going down)
-    if (n_epochs >= 10 and epoch % math.ceil(0.025 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
-        print(f"Epoch {epoch}: \n\tTrain Loss:{train_loss:.4f}\tValid Loss:{valid_loss:.4f}")
+    train_losses = []
+    valid_losses = []
+    # add training part here 
+    for epoch in tqdm(range(n_epochs)):
+        learning_rate *= 0.99 # LR scheduler
+        train_loss = train_network(network, x_train_, y_train_, learning_rate)
+        valid_loss = eval_network(network, x_valid_, y_valid_)
+        train_losses.append(train_loss)
+        valid_losses.append(valid_loss)
+        # For the first, every 5% of the epochs and last epoch, we print the loss 
+        # to check that the model is properly training. (loss going down)
+        if (n_epochs >= 10 and epoch % math.ceil(0.025 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
+            print(f"Epoch {epoch}: \n\tTrain Loss:{train_loss:.4f}\tValid Loss:{valid_loss:.4f}")
 
-# Plotting the losses 
-fig,ax = plt.subplots(1,1, figsize=(9,5))
-ax.plot(range(n_epochs), train_losses, label='Train loss', c='b')
-ax.plot(range(n_epochs), valid_losses, label='Valid loss', c='m')
-ax.legend()
-plt.show()
+    save_cnn_model('./test_cnn.pkl', model=network)
+    # Plotting the losses 
+    fig,ax = plt.subplots(1,1, figsize=(9,5))
+    ax.plot(range(n_epochs), train_losses, label='Train loss', c='b')
+    ax.plot(range(n_epochs), valid_losses, label='Valid loss', c='m')
+    ax.legend()
+    plt.show()
+    reloaded_model = load_cnn_model('./test_cnn.pkl', model=None)
+
+    net_loss=eval_network(network, x_valid_, y_valid_)
+    reloaded_net_loss = eval_network(reloaded_model, x_valid_, y_valid_)
+    print('trained model:\t', net_loss)
+    print('reloaded model:\t', reloaded_net_loss)
+
+if __name__ == "__main__":
+    main()

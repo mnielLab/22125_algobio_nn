@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import math
-
+import pickle
 import sys
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc, matthews_corrcoef
@@ -71,6 +71,33 @@ x_train_, y_train_ = encode_peptides(train_raw, blosum_file, train_raw.peptide.a
 x_valid_, y_valid_ = encode_peptides(valid_raw, blosum_file, train_raw.peptide.apply(len).max())
 x_test_, y_test_ = encode_peptides(test_raw, blosum_file, train_raw.peptide.apply(len).max())
 
+def save_ffnn_model(filepath, model):
+    if not filepath.endswith('.pkl'):
+        filepath = filepath+'.pkl'
+    with open(filepath, 'wb') as f:
+        dict_to_save = {'input_size': model.W1.shape[0], 'hidden_size':model.W1.shape[1], 'output_size':model.W2.shape[1],
+                        'W1': model.W1, 'b1':model.b1, 'W2':model.W2, 'b2':model.b2}
+        pickle.dump(dict_to_save, f)
+        print(f'Saved FFNN model at {filepath}')
+
+
+def load_ffnn_model(filepath, model=None):
+
+    with open(filepath, 'rb') as f:
+        loaded_dict = pickle.load(f)
+    if model is None:
+            model = SimpleFFNN(loaded_dict['input_size'], loaded_dict['hidden_size'], loaded_dict['output_size'])
+    assert (model.W1.shape[0]==loaded_dict['input_size'] and model.W1.shape[1]==loaded_dict['hidden_size'] and model.W2.shape[1]==loaded_dict['output_size']), \
+        f"Model and loaded weights size mismatch!. Provided model has weight of dimensions {model.W1.shape, model.W2.shape} ; Loaded weights have shape {loaded_dict['W1'].shape, loaded_dict['W2'].shape}"
+
+    model.W1 = loaded_dict['W1']
+    model.b1 = loaded_dict['b1']
+    model.W2 = loaded_dict['W2']
+    model.b2 = loaded_dict['b2']
+    print(f"Model loaded successfully from {filepath}\nwith weights [ W1, W2 ] dimensions : {model.W1.shape, model.W2.shape}")
+    return model
+
+
 # FFN part
 class SimpleFFNN:
     def __init__(self, input_size, hidden_size, output_size):
@@ -79,7 +106,7 @@ class SimpleFFNN:
         self.b1 = np.zeros(hidden_size)
         self.W2 = np.random.randn(hidden_size, output_size) * 0.1
         self.b2 = np.zeros(output_size)
-
+        print(self.W1.shape, self.b1.shape, self.W2.shape, self.b2.shape)
     def relu(self, x):
         return np.maximum(0, x)
 
@@ -228,17 +255,20 @@ def main():
         if (n_epochs >= 10 and epoch % math.ceil(0.05 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
             print(f"Epoch {epoch}: \n\tTrain Loss:{train_loss:.4f}\tValid Loss:{valid_loss:.4f}")
 
+    save_ffnn_model('./test_ffnn.pkl', model=network)
     # Plotting the losses 
     fig,ax = plt.subplots(1,1, figsize=(9,5))
     ax.plot(range(n_epochs), train_losses, label='Train loss', c='b')
     ax.plot(range(n_epochs), valid_losses, label='Valid loss', c='m')
     ax.legend()
     plt.show()
+    reloaded_model = load_ffnn_model('./test_ffnn.pkl', model=None)
+    
+
+    net_loss=eval_network(network, x_valid_, y_valid_)
+    reloaded_net_loss = eval_network(reloaded_model, x_valid_, y_valid_)
+    print('trained model:\t', net_loss)
+    print('reloaded model:\t', reloaded_net_loss)
 
 if __name__ == "__main__":
     main()
-
-
-
-
-# CNN part
