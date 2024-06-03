@@ -56,20 +56,6 @@ def invoke(early_stopping, loss, model, implement=False):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-ALLELE = 'A0201' #'A0301'
-
-blosum_file = './data/BLOSUM50'
-train_data = f'./data/{ALLELE}/train_BA'
-valid_data = f'./data/{ALLELE}/valid_BA'
-test_data = f'./data/{ALLELE}/test_BA'
-
-train_raw = load_peptide_target(train_data)
-valid_raw = load_peptide_target(valid_data)
-test_raw = load_peptide_target(test_data)
-
-x_train_, y_train_ = encode_peptides(train_raw, blosum_file, train_raw.peptide.apply(len).max())
-x_valid_, y_valid_ = encode_peptides(valid_raw, blosum_file, train_raw.peptide.apply(len).max())
-x_test_, y_test_ = encode_peptides(test_raw, blosum_file, train_raw.peptide.apply(len).max())
 
 # FFN part
 class SimpleFFNN:
@@ -155,6 +141,7 @@ def backward(net, x, y, z1, a1, z2, a2, learning_rate=0.01):
     net.W2 -= learning_rate * d_W2
     net.b2 -= learning_rate * d_b2.squeeze()
 
+
 def train_network(net, x_train, y_train, learning_rate):
     """
     Trains the network for a single epoch, running the forward and backward pass, and compute and return the loss.
@@ -174,51 +161,68 @@ def eval_network(net, x_valid, y_valid):
     loss = np.mean((a2-y_valid)**2)
     return loss
 
+def main():
 
-# Reshaping the matrices so they're flat because feed-forward networks are "one-dimensional"
-x_train_ = x_train_.reshape(x_train_.shape[0], -1)
-x_valid_ = x_valid_.reshape(x_valid_.shape[0], -1)
-x_test_ = x_test_.reshape(x_test_.shape[0], -1)
+    ALLELE = 'A0201' #'A0301'
 
-print(x_train_.shape, x_valid_.shape, x_test_.shape)
+    blosum_file = './data/BLOSUM50'
+    train_data = f'./data/{ALLELE}/train_BA'
+    valid_data = f'./data/{ALLELE}/valid_BA'
+    test_data = f'./data/{ALLELE}/test_BA'
 
-# Using the full dataset as a batch (full gradient descent)
-batch_size = x_train_.shape[0]
-# The input size is the number of features ; Here it's max_length * 21 because we have 21 matrix dimensions
-input_size = x_train_.shape[1]
+    train_raw = load_peptide_target(train_data)
+    valid_raw = load_peptide_target(valid_data)
+    test_raw = load_peptide_target(test_data)
 
-# CHECKPOINT
+    x_train_, y_train_ = encode_peptides(train_raw, blosum_file, train_raw.peptide.apply(len).max())
+    x_valid_, y_valid_ = encode_peptides(valid_raw, blosum_file, train_raw.peptide.apply(len).max())
+    x_test_, y_test_ = encode_peptides(test_raw, blosum_file, train_raw.peptide.apply(len).max())
 
-# Hyperparameters
-learning_rate = float(sys.argv[1]) # 0.01
-hidden_units = int(sys.argv[2]) # 50
-n_epochs = int(sys.argv[3]) # 500
-output_size = 1 # We want to predict a single value (regression)
+    # Reshaping the matrices so they're flat because feed-forward networks are "one-dimensional"
+    x_train_ = x_train_.reshape(x_train_.shape[0], -1)
+    x_valid_ = x_valid_.reshape(x_valid_.shape[0], -1)
+    x_test_ = x_test_.reshape(x_test_.shape[0], -1)
 
-# Neural Network training here
-network = SimpleFFNN(input_size, hidden_units, output_size)
+    print(x_train_.shape, x_valid_.shape, x_test_.shape)
 
-train_losses = []
-valid_losses = []
-# add training part here 
-for epoch in range(n_epochs):
-    train_loss = train_network(network, x_train_, y_train_, learning_rate)
-    valid_loss = eval_network(network, x_valid_, y_valid_)
-    train_losses.append(train_loss)
-    valid_losses.append(valid_loss)
-    # For the first, every 5% of the epochs and last epoch, we print the loss 
-    # to check that the model is properly training. (loss going down)
-    if (n_epochs >= 10 and epoch % math.ceil(0.05 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
-        print(f"Epoch {epoch}: \n\tTrain Loss:{train_loss:.4f}\tValid Loss:{valid_loss:.4f}")
+    # Using the full dataset as a batch (full gradient descent)
+    batch_size = x_train_.shape[0]
+    # The input size is the number of features ; Here it's max_length * 21 because we have 21 matrix dimensions
+    input_size = x_train_.shape[1]
 
-# Plotting the losses 
-fig,ax = plt.subplots(1,1, figsize=(9,5))
-ax.plot(range(n_epochs), train_losses, label='Train loss', c='b')
-ax.plot(range(n_epochs), valid_losses, label='Valid loss', c='m')
-ax.legend()
-plt.show()
+    # CHECKPOINT
 
+    # Hyperparameters
+    learning_rate = float(sys.argv[1]) # 0.01
+    hidden_units = int(sys.argv[2]) # 50
+    n_epochs = int(sys.argv[3]) # 500
+    output_size = 1 # We want to predict a single value (regression)
 
+    # Neural Network training here
+    network = SimpleFFNN(input_size, hidden_units, output_size)
+
+    train_losses = []
+    valid_losses = []
+    # add training part here 
+    for epoch in range(n_epochs):
+        train_loss = train_network(network, x_train_, y_train_, learning_rate)
+        valid_loss = eval_network(network, x_valid_, y_valid_)
+        train_losses.append(train_loss)
+        valid_losses.append(valid_loss)
+        # For the first, every 5% of the epochs and last epoch, we print the loss 
+        # to check that the model is properly training. (loss going down)
+        if (n_epochs >= 10 and epoch % math.ceil(0.05 * n_epochs) == 0) or epoch == 0 or epoch == n_epochs:
+            print(f"Epoch {epoch}: \n\tTrain Loss:{train_loss:.4f}\tValid Loss:{valid_loss:.4f}")
+
+    # Plotting the losses 
+    fig,ax = plt.subplots(1,1, figsize=(9,5))
+    ax.plot(range(n_epochs), train_losses, label='Train loss', c='b')
+    ax.plot(range(n_epochs), valid_losses, label='Valid loss', c='m')
+    ax.legend()
+    plt.show()
+
+if __name__ == "__main__":
+    main()
 
 
 
