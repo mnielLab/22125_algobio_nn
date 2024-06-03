@@ -56,7 +56,7 @@ def invoke(early_stopping, loss, model, implement=False):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-ALLELE = 'A0201' #'A0301'
+ALLELE = 'A0301' #'A0301'
 
 blosum_file = './data/BLOSUM50'
 train_data = f'./data/{ALLELE}/train_BA'
