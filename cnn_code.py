@@ -71,13 +71,13 @@ class SimpleCNN:
         Function to perform 1D convolution on a batch of data.
         """
         batch_size = len(batch_x)
-        kernel_size, in_channels, out_channels = self.filter.shape
+        kernel_size, _, out_channels = self.filter.shape
         output_size = len(batch_x[0]) - kernel_size + 1
         batch_output = np.zeros((batch_size, output_size, out_channels))
 
         for i in range(output_size):
             batch_output[:, i, :] = np.sum(batch_x[:, i:i + kernel_size, :, None] * self.filter, axis=(1, 2))
-        
+    
         return batch_output
 
     def global_max_pooling(self, x):
@@ -163,7 +163,8 @@ def eval_network(net, x_valid, y_valid):
     loss = np.mean((a2-y_valid)**2)
     return loss
 
-ALLELE = 'A0201' #'A0301'
+ALLELE = 'A0301' #'A0201'
+
 
 blosum_file = './data/BLOSUM50'
 train_data = f'./data/{ALLELE}/train_BA'
@@ -186,7 +187,7 @@ batch_size = x_train_.shape[0]
 input_size = x_train_.shape[-1]
 
 # Hyperparameters
-learning_rate = float(sys.argv[1]) # 0.01
+learning_rate = float(sys.argv[1]) # 0.0001
 hidden_units = int(sys.argv[2]) # 50
 out_channels = int(sys.argv[3]) # 50
 n_epochs = int(sys.argv[4]) # 500
@@ -201,6 +202,7 @@ train_losses = []
 valid_losses = []
 # add training part here 
 for epoch in tqdm(range(n_epochs)):
+    learning_rate *= 0.99 # LR scheduler
     train_loss = train_network(network, x_train_, y_train_, learning_rate)
     valid_loss = eval_network(network, x_valid_, y_valid_)
     train_losses.append(train_loss)
@@ -216,10 +218,3 @@ ax.plot(range(n_epochs), train_losses, label='Train loss', c='b')
 ax.plot(range(n_epochs), valid_losses, label='Valid loss', c='m')
 ax.legend()
 plt.show()
-
-
-
-
-
-
-# CNN part
