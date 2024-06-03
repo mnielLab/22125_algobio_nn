@@ -185,12 +185,13 @@ input_size = x_train_.shape[-1]
 # Hyperparameters
 learning_rate = float(sys.argv[1]) # 0.01
 hidden_units = int(sys.argv[2]) # 50
-n_epochs = int(sys.argv[3]) # 500
-kernel_size = int(sys.argv[4])
+out_channels = int(sys.argv[3]) # 50
+n_epochs = int(sys.argv[4]) # 500
+kernel_size = int(sys.argv[5])
 output_size = 1 # We want to predict a single value (regression)
 
 # Neural Network training here
-network = SimpleCNN(kernel_size=kernel_size, in_channels=21, out_channels=hidden_units, 
+network = SimpleCNN(kernel_size=kernel_size, in_channels=21, out_channels=out_channels, 
                     hidden_size=hidden_units, output_size=output_size)
 
 train_losses = []
