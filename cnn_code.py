@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import math
-
+from tqdm.auto import tqdm
 import sys
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc, matthews_corrcoef
@@ -90,11 +90,11 @@ class SimpleCNN:
         return np.max(x, axis=1), pool_indices
 
     def forward(self, x):
-        print("input", x.shape)
+        # print("input", x.shape)
         conv_output = self.conv1d(x)
-        print("conv output", conv_output.shape)
+        # print("conv output", conv_output.shape)
         pooled_output, pool_indices = self.global_max_pooling(conv_output)
-        print("pooled output", pooled_output.shape)
+        # print("pooled output", pooled_output.shape)
         return conv_output, pooled_output, pool_indices, *self.fnn.forward(pooled_output)
 
 
@@ -190,12 +190,12 @@ n_epochs = int(sys.argv[3]) # 500
 output_size = 1 # We want to predict a single value (regression)
 
 # Neural Network training here
-network = SimpleCNN(kernel_size=3, in_channels=21, out_channels=64, hidden_size=hidden_units, output_size=output_size)
+network = SimpleCNN(kernel_size=5, in_channels=21, out_channels=sys.argv[2], hidden_size=hidden_units, output_size=output_size)
 
 train_losses = []
 valid_losses = []
 # add training part here 
-for epoch in range(n_epochs):
+for epoch in tqdm(range(n_epochs)):
     train_loss = train_network(network, x_train_, y_train_, learning_rate)
     valid_loss = eval_network(network, x_valid_, y_valid_)
     train_losses.append(train_loss)
