@@ -257,8 +257,8 @@ def main():
     plt.show()
     reloaded_model = load_cnn_model('./test_cnn.pkl', model=None)
 
-    net_loss=eval_network(network, x_valid_, y_valid_)
-    reloaded_net_loss = eval_network(reloaded_model, x_valid_, y_valid_)
+    net_loss=eval_network(network, x_test_, y_test_)
+    reloaded_net_loss = eval_network(reloaded_model, x_test_, y_test_)
     print('trained model:\t', net_loss)
     print('reloaded model:\t', reloaded_net_loss)
 

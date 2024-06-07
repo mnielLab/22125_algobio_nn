@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc, matthews_corrcoef
 
 # Utility functions you will re-use
-
 # Data-related utility functions
 def load_blosum(filename):
     """
@@ -55,6 +54,14 @@ def invoke(early_stopping, loss, model, implement=False):
         
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def plot_losses(train_losses, valid_losses, n_epochs):
+    # Plotting the losses 
+    fig,ax = plt.subplots(1,1, figsize=(9,5))
+    ax.plot(range(n_epochs), train_losses, label='Train loss', c='b')
+    ax.plot(range(n_epochs), valid_losses, label='Valid loss', c='m')
+    ax.legend()
+    fig.show()
 
 ALLELE = 'A0301' #'A0301'
 
@@ -256,12 +263,7 @@ def main():
             print(f"Epoch {epoch}: \n\tTrain Loss:{train_loss:.4f}\tValid Loss:{valid_loss:.4f}")
 
     save_ffnn_model('./test_ffnn.pkl', model=network)
-    # Plotting the losses 
-    fig,ax = plt.subplots(1,1, figsize=(9,5))
-    ax.plot(range(n_epochs), train_losses, label='Train loss', c='b')
-    ax.plot(range(n_epochs), valid_losses, label='Valid loss', c='m')
-    ax.legend()
-    plt.show()
+    plot_losses()
     reloaded_model = load_ffnn_model('./test_ffnn.pkl', model=None)
     
 
