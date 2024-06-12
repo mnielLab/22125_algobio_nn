@@ -215,7 +215,7 @@ def main():
     x_valid_, y_valid_ = encode_peptides(valid_raw, blosum_file, train_raw.peptide.apply(len).max())
     x_test_, y_test_ = encode_peptides(test_raw, blosum_file, train_raw.peptide.apply(len).max())
 
-    # print(x_train_.shape, x_valid_.shape, x_test_.shape)
+    print(x_train_.shape, x_valid_.shape, x_test_.shape)
 
     # Using the full dataset as a batch (full gradient descent)
     batch_size = x_train_.shape[0]
